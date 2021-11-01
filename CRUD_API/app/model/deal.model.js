@@ -1,249 +1,125 @@
-const mysql = require("mysql");
+const sql = require("./db.js");
 
-  const dbConfig = require("../config/db.config.js");
-  // создаем соединение с нашей базой данных
+// конструктор нашего дела. В нашем todo будет два задаваемых значения
+// текст и внутреннее inner_id для нашего дела
 
-  const connection = mysql.createConnection({
-
-    host: dbConfig.HOST,
-
-    user: dbConfig.USER,
-
-    password: dbConfig.PASSWORD,
-
-    database: dbConfig.DB
-
-  });
-  // открываем наше соединение с базой данных
-
-  connection.connect(err => {
-
-    if (err) throw error;
-
-    console.log("успешно соединено с базой данных");
-
-  });
-  module.exports = connection;
-
-   //экспортируем наше соединение
-// конструктор нашего дела
-
-  const Deal = function(deal) {
-
-    this.text = deal.text;
-    this.inner_key = deal.inner_key;
-
-
-  };
-
-  //у нашей модели будут функции, с помощью которых можно осуществлять все операции CRUD, которые были озвучены в начале статьи:
-
-  Deal.create = (newDeal, result) => {
-
-    sql.query("INSERT INTO TODO SET ?", newDeal, (err, res) => {
-
-      //операция вставки из SQL
-
-      if (err) {
-
-        console.log("error: ", err);
-
-        result(err, null);
-
-        //немного бедная обработка ошибок, но на первое время 
-хватит
-
-        return;
-
-      }
-
-      console.log("Дело сделано", { id: res.insertId, ...newDeal
-});
-
-      result(null, { id: res.insertId, ...newDeal });
-
-    });
-
-  };
-Deal.findById = (dealId, result) => {
-
-sql.query(`SELECT * FROM TODO WHERE id = ${dealId}`, (err, res) => {
-
-if (err) {
-
-console.log("error: ", err);
-
-result(err, null);
-
-return;
-
-}
-
-
-if (res.length) {
-
-console.log("найдено дело: ", res[0]);
-
-result(null, res[0]);
-
-return;
-
-}
-
-
-// когда ничего не удалось найти
-
-result({ kind: "not_found" }, null);
-
-});
-
+const Deal = function(deal) {
+  this.text = deal.text;
+  this.inner_key = deal.inner_key;
 };
 
 
-Deal.getAll = result => {
-
-sql.query("SELECT * FROM TODO", (err, res) => {
-
-if (err) {
-
-console.log("error: ", err);
-
-result(null, err);
-
-return;
-
-}
-
-
-console.log("deals: ", res);
-
-result(null, res);
-
-});
-
-};
-
-
-Deal.updateById = (id, deal, result) => {
-
-sql.query(
-
-"UPDATE TODO SET text =? WHERE id = ?",
-
-[deal.text, id],
-
-(err, res) => {
-
-if (err) {
-
-console.log("error: ", err);
-
-result(null, err);
-
-return;
-
-}
-
-
-if (res.affectedRows == 0) {
-
-result({ kind: "not_found" }, null);
-
-return;
-
-}
-
-
-console.log("Обновлено дело ", { id: id, ...deal });
-
-result(null, { id: id, ...deal });
-
-}
-
-);
-
-};
-
-
-Deal.remove = (id, result) => {
-
-sql.query("DELETE FROM TODO WHERE id = ?", id, (err, res) => {
-
-if (err) {
-
-console.log("error: ", err);
-
-result(null, err);
-
-return;
-
-}
-
-
-if (res.affectedRows == 0) {
-
-// если дело не удалось получить по id
-
-result({ kind: "not_found" }, null);
-
-return;
-
-}
-
-console.log("Удален пользователь с ", id);
-
-result(null, res);
-
-});
-
-};
-
-
-Deal.removeAll = result => {
-
-sql.query("DELETE FROM TODO", (err, res) => {
-
-if (err) {
-
-console.log("error: ", err);
-
-result(null, err);
-
-return;
-
-}
-
-
-console.log(`deleted ${res.affectedRows} deals`);
-
-result(null, res);
-
-});
-
-};
-Deal.findById = (dealId, result) => {
-
-  sql.query(`SELECT * FROM TODO WHERE inner_key = '${dealId}'`, 
-(err, res) => {
-
-
- // здесь обработка ошибок, не вижу смысла ее дублировать
-
-
-    if (res.length) {
-
-      console.log("найдено дело: ", res[0]);
-
-      result(null, res[0]);
-
+Deal.create = (newDeal, result) => {
+
+  const queryInsert = "INSERT INTO TODO SET ?";
+  sql.query(queryInsert, newDeal, (err, res) => {
+    if (err) {
+      console.log("error: ", err);
+      result(err, null);
       return;
+    }
+    console.log("Создано дело", { id: res.insertId, ...newDeal });
+    result(null, { id: res.insertId, ...newDeal }); 
+    //используем spread для отправки наших аргументов в базу данных
 
+  });
+};
+
+
+
+//получение дела по одному inner_id
+Deal.findById = (dealId, result) => {
+  sql.query(`SELECT * FROM TODO WHERE inner_key = '${dealId}'`, (err, res) => {
+
+    if (err) {
+      console.log("error: ", err);
+      result(err, null);
+      return;
     }
 
-    // если вдруг не удалось найти
-
+    if (res.length) {
+      console.log("найдено дело: ", res[0]);
+      result(null, res[0]);
+      return;
+    }
+    // когда ничего не удалось найти
     result({ kind: "not_found" }, null);
-
   });
-
 };
+
+ Deal.getAll = result => {
+   // здесь я немного переписал по сравнению с предыдущим разом
+   // я хочу из базы данных только текст и inner_key, сам id из базы данных я забирать не хочу
+   const queryAll = "SELECT text, inner_key FROM TODO";
+  sql.query(queryAll, (err, res) => {
+    if (err) {
+      console.log("error: ", err);
+      result(null, err);
+      return;
+    }
+
+    console.log("deals: ", res);
+    result(null, res);
+  });
+};
+
+//мы будем обновлять дела по inner_key
+Deal.updateById = (inner_key, deal, result) => {
+  const queryUpdate = "UPDATE TODO SET text = ?  WHERE inner_key = ?";
+  sql.query(
+    queryUpdate,
+    [deal.text, inner_key],
+    (err, res) => {
+      if (err) {
+        console.log("error: ", err);
+        result(null, err);
+        return;
+      }
+
+      if (res.affectedRows == 0) {
+        result({ kind: "not_found" }, null);
+        return;
+      }
+
+      console.log("Обновлено дело ", { inner_key: inner_key, ...deal });
+      result(null, { inner_key: inner_key, ...deal });
+    }
+  );
+};
+
+
+
+Deal.remove = (inner_key, result) => {
+  const queryDelete = "DELETE FROM TODO WHERE inner_key = ?";
+  sql.query(queryDelete, inner_key, (err, res) => {
+    if (err) {
+      console.log("error: ", err); 
+      result(null, err);
+      return;
+    }
+
+    if (res.affectedRows == 0) {
+      //  если дело не удалось получить по inner_key
+      result({ kind: "не найдено" }, null);
+      return;
+    }
+
+    console.log("Удален пользователь с  ", inner_key);
+    result(null, res);
+  });
+};
+
+Deal.removeAll = result => {
+  sql.query("DELETE FROM TODO", (err, res) => {
+    if (err) {
+      console.log("error: ", err);
+      result(null, err);
+      return;
+    }
+
+    console.log(`deleted ${res.affectedRows} deals`);
+    result(null, res);
+  });
+};
+
+module.exports = Deal;
